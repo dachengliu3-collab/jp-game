@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>本州観光地マスター Pro</title>
+    <style>
+        :root { --main-red: #d32f2f; --correct-green: #4caf50; --wrong-red: #f44336; }
+        body { font-family: 'Hiragino Kaku Gothic Pro', sans-serif; background: #f8f9fa; display: flex; justify-content: center; padding: 20px; }
+        #game-container { background: white; width: 100%; max-width: 800px; border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.1); padding: 30px; }
+        h1 { color: var(--main-red); text-align: center; border-bottom: 3px solid var(--main-red); padding-bottom: 15px; margin-top: 0; }
+        .menu-btn { display: block; width: 100%; margin: 12px 0; padding: 18px; font-size: 17px; cursor: pointer; border: 1px solid #ddd; border-radius: 12px; background: #fff; transition: 0.2s; text-align: left; }
+        .menu-btn:hover { background: #fff5f5; border-color: var(--main-red); }
+        #question-text { font-size: 22px; font-weight: bold; margin: 25px 0; text-align: center; color: #333; min-height: 30px;}
+        .option-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .option-btn { padding: 18px; border: 2px solid #eee; border-radius: 10px; cursor: pointer; background: white; font-size: 16px; transition: 0.3s; }
+        .correct { background: var(--correct-green) !important; color: white !important; border-color: var(--correct-green) !important; }
+        .wrong { background: var(--wrong-red) !important; color: white !important; border-color: var(--wrong-red) !important; }
+        .match-container { display: flex; justify-content: space-between; gap: 30px; }
+        .match-col { flex: 1; display: flex; flex-direction: column; gap: 12px; }
+        .match-item { padding: 15px; border: 2px solid #ddd; border-radius: 10px; cursor: pointer; text-align: center; background: white; font-size: 15px; }
+        .match-item.active { border-color: #2196f3; background: #e3f2fd; }
+        .match-item.locked { cursor: default; opacity: 0.5; border-color: var(--correct-green); background: #e8f5e9; }
+        input[type="text"] { width: 100%; padding: 15px; font-size: 24px; border: 3px solid #ddd; border-radius: 10px; text-align: center; box-sizing: border-box; }
+        #feedback-area { margin-top: 20px; font-size: 20px; font-weight: bold; text-align: center; height: 30px; }
+        .nav-group { margin-top: 40px; display: flex; justify-content: center; gap: 20px; border-top: 1px solid #eee; padding-top: 20px; }
+        .nav-btn { padding: 12px 40px; cursor: pointer; border: none; border-radius: 30px; font-weight: bold; font-size: 16px; }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div id="main-menu">
+        <h1>🇯🇵 本州観光地マスター</h1>
+        <button class="menu-btn" onclick="startMode(1)">1. 都道府県 → 観光地（単一選択）</button>
+        <button class="menu-btn" onclick="startMode(2)">2. 観光地 → 都道府県（単一選択）</button>
+        <button class="menu-btn" onclick="startMode(3)">3. 都道府県 → 観光地（複数選択・6択）</button>
+        <button class="menu-btn" onclick="startMode(4)">4. 正誤判定クイズ</button>
+        <button class="menu-btn" onclick="startMode(5)">5. 線結び（マッチング）</button>
+        <button class="menu-btn" onclick="startMode(6)">6. ふりがな入力（解答表示付）</button>
+    </div>
+
+    <div id="game-area" style="display:none">
+        <div id="question-text"></div>
+        <div id="content"></div>
+        <div id="feedback-area"></div>
+        <div class="nav-group">
+            <button class="nav-btn" style="background:#eee;" onclick="location.reload()">戻る</button>
+            <button class="nav-btn" style="background:var(--main-red); color:white;" onclick="renderQuestion()">次の問題へ</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// 这里放入181条数据
+const rawData = [
+    {p: "東京都", s: "浅草寺", k: "せんそうじ"}, {p: "東京都", s: "明治神宮", k: "めいじじんぐう"}, {p: "東京都", s: "神田明神", k: "かんだみょうじん"}, {p: "東京都", s: "新宿御苑", k: "しんじゅくぎょえん"}, {p: "東京都", s: "上野恩賜公園", k: "うえのおんしこうえん"}, {p: "東京都", s: "渋谷スクランブル交差点", k: "しぶやスクランブルこうさてん"}, {p: "東京都", s: "銀座", k: "ぎんざ"}, {p: "東京都", s: "お台場", k: "おだいば"}, {p: "東京都", s: "東京タワー", k: "とうきょうタワー"}, {p: "東京都", s: "東京スカイツリー", k: "とうきょうスカイツリー"},
+    {p: "京都府", s: "嵐山", k: "あらしやま"}, {p: "京都府", s: "渡月橋", k: "とげつきょう"}, {p: "京都府", s: "竹林の小径", k: "ちくりんのこみち"}, {p: "京都府", s: "比叡山", k: "ひえいざん"}, {p: "京都府", s: "清水寺", k: "きよみずでら"}, {p: "京都府", s: "金閣寺", k: "きんかくじ"}, {p: "京都府", s: "銀閣寺", k: "ぎんかくじ"}, {p: "京都府", s: "伏見稲荷大社", k: "ふしみいなりたいしゃ"}, {p: "京都府", s: "祇園", k: "ぎおん"}, {p: "京都府", s: "二条城", k: "にじょうじょう"}, {p: "京都府", s: "平等院", k: "びょうどういん"}, {p: "京都府", s: "天橋立", k: "あまのはしだて"},
+    {p: "大阪府", s: "箕面大滝", k: "みのおおおたき"}, {p: "大阪府", s: "勝尾寺", k: "かつおじ"}, {p: "大阪府", s: "大阪城", k: "おおさかじょう"}, {p: "大阪府", s: "道頓堀", k: "どうとんぼり"}, {p: "大阪府", s: "黒門市場", k: "くろもんいちば"}, {p: "大阪府", s: "通天閣", k: "つうてんかく"}, {p: "大阪府", s: "四天王寺", k: "してんのうじ"},
+    {p: "青森県", s: "奥入瀬渓流", k: "おいらせけいりゅう"}, {p: "青森県", s: "十和田湖", k: "とわだこ"}, {p: "青森県", s: "八甲田山", k: "八甲田山"}, {p: "青森県", s: "白神山地", k: "しらかみさんち"}, {p: "青森県", s: "弘前城", k: "ひろさきじょう"}, {p: "青森県", s: "三内丸山遺跡", k: "さんないまるやまいせき"}, {p: "青森県", s: "浅虫温泉", k: "あさむしおんせん"},
+    {p: "岩手県", s: "中尊寺", k: "ちゅうそんじ"}, {p: "岩手県", s: "毛越寺", k: "もうつじ"}, {p: "岩手県", s: "龍泉洞", k: "りゅうせんどう"}, {p: "岩手県", s: "浄土ヶ浜", k: "じょうどがはま"}, {p: "岩手県", s: "八幡平", k: "はちまんたい"}, {p: "岩手県", s: "小岩井農場", k: "こいわいのうじょう"},
+    {p: "宮城県", s: "松島", k: "まつしま"}, {p: "宮城県", s: "瑞鳳殿", k: "瑞鳳殿"}, {p: "宮城県", s: "仙台城跡", k: "せんだいじょうせき"}, {p: "宮城県", s: "定禅寺通", k: "じょうぜんじどおり"}, {p: "宮城県", s: "秋保大滝", k: "あきうおおたき"}, {p: "宮城県", s: "鹽竈神社", k: "しおがまじんじゃ"},
+    {p: "秋田県", s: "田沢湖", k: "たざわこ"}, {p: "秋田県", s: "角館武家屋敷", k: "かくのだてぶけやしき"}, {p: "秋田県", s: "乳頭温泉郷", k: "にゅうとうおんせんきょう"}, {p: "秋田県", s: "男鹿半島", k: "おがはんとう"}, {p: "秋田県", s: "森吉山", k: "もりよしざん"},
+    {p: "山形県", s: "立石寺", k: "りっしゃくじ"}, {p: "山形県", s: "山寺", k: "やまでら"}, {p: "山形県", s: "銀山温泉", k: "ぎんざんおんせん"}, {p: "山形県", s: "蔵王温泉", k: "ざおうおんせん"}, {p: "山形県", s: "蔵王樹氷", k: "ざおうじゅひょう"}, {p: "山形県", s: "月山", k: "がっさん"},
+    {p: "福島県", s: "鶴ヶ城", k: "つるがじょう"}, {p: "福島県", s: "大内宿", k: "おおうちじゅく"}, {p: "福島県", s: "五色沼", k: "ごしきぬま"}, {p: "福島県", s: "磐梯山", k: "ばんだいさん"}, {p: "福島県", s: "飯坂温泉", k: "いいざかおんせん"}, {p: "福島県", s: "東山温泉", k: "ひがしやまおんせん"},
+    {p: "茨城県", s: "偕楽園", k: "かいらくえん"}, {p: "茨城県", s: "国営ひたち海浜公園", k: "こくえいひたちかいひんこうえん"}, {p: "茨城県", s: "袋田の滝", k: "ふくろだのたき"}, {p: "茨城県", s: "鹿島神宮", k: "かしまじんぐう"}, {p: "茨城県", s: "大洗磯前神社", k: "おおあらいいそさきじんじゃ"},
+    {p: "栃木県", s: "日光東照宮", k: "にっこうとうしょうぐう"}, {p: "栃木県", s: "日光二荒山神社", k: "にっこうふたらさんじんじゃ"}, {p: "栃木県", s: "中禅寺湖", k: "ちゅうぜんじこ"}, {p: "栃木県", s: "華厳の滝", k: "けごんのたき"}, {p: "栃木県", s: "那須高原", k: "なすごうげん"},
+    {p: "群馬県", s: "草津温泉", k: "くさつおんせん"}, {p: "群馬県", s: "伊香保温泉", k: "いかほおんせん"}, {p: "群馬県", s: "四万温泉", k: "しまおんせん"}, {p: "群馬県", s: "富岡製糸場", k: "とみおかせいしじょう"}, {p: "群馬県", s: "吹割の滝", k: "ふきわれのたき"},
+    {p: "埼玉県", s: "川越", k: "かわごえ"}, {p: "埼玉県", s: "菓子屋横丁", k: "かしやよこちょう"}, {p: "埼玉県", s: "長瀞", k: "ながとろ"}, {p: "埼玉県", s: "秩父神社", k: "ちちぶじんじゃ"}, {p: "埼玉県", s: "三峰神社", k: "みつみねじんじゃ"}, {p: "埼玉県", s: "喜多院", k: "きたいん"},
+    {p: "千葉県", s: "成田山新勝寺", k: "なりたさんしんしょうじ"}, {p: "千葉県", s: "犬吠埼灯台", k: "いぬぼうさきとうだい"}, {p: "千葉県", s: "九十九里浜", k: "くじゅうくりはま"}, {p: "千葉県", s: "房総半島", k: "ぼうそうはんとう"},
+    {p: "神奈川県", s: "鶴岡八幡宮", k: "つるがおかはちまんぐう"}, {p: "神奈川県", s: "鎌倉大仏", k: "かまくらだいぶつ"}, {p: "神奈川県", s: "長谷寺", k: "はせでら"}, {p: "神奈川県", s: "江の島", k: "えのしま"}, {p: "神奈川県", s: "箱根", k: "はこね"}, {p: "神奈川県", s: "芦ノ湖", k: "あしのこ"}, {p: "神奈川県", s: "横浜赤レンガ倉庫", k: "よこはまあかレンガそうこ"},
+    {p: "新潟県", s: "佐渡島", k: "さどがしま"}, {p: "新潟県", s: "清津峡", k: "きよつきょう"}, {p: "新潟県", s: "弥彦神社", k: "やひこじんじゃ"}, {p: "新潟県", s: "越後湯沢", k: "えちごゆざわ"},
+    {p: "富山県", s: "立山黒部アルペンルート", k: "たてやまくろべアルペンルート"}, {p: "富山県", s: "五箇山", k: "ごかやま"},
+    {p: "石川県", s: "兼六園", k: "けんろくえん"}, {p: "石川県", s: "金沢城跡", k: "かなざわじょうせき"}, {p: "石川県", s: "ひがし茶屋街", k: "ひがしちゃやがい"}, {p: "石川県", s: "忍者寺", k: "にんじゃでら"},
+    {p: "福井県", s: "東尋坊", k: "とうじんぼう"}, {p: "福井県", s: "永平寺", k: "えいへいじ"}, {p: "福井県", s: "福井県立恐竜博物館", k: "ふくいけんりつきょうりゅうはくぶつかん"},
+    {p: "山梨県", s: "西湖いやしの里根場", k: "さいこいやしのさとねんば"}, {p: "山梨県", s: "富士山五合目", k: "ふじさんごごうめ"}, {p: "山梨県", s: "河口湖", k: "かわぐちこ"}, {p: "山梨県", s: "山中湖", k: "やまなかこ"}, {p: "山梨県", s: "忍野八海", k: "おしのはっかい"}, {p: "山梨県", s: "身延山久遠寺", k: "みのぶさんくおんじ"},
+    {p: "長野県", s: "上高地", k: "かみこうち"}, {p: "長野県", s: "松本城", k: "まつもとじょう"}, {p: "長野県", s: "善光寺", k: "ぜんこうじ"}, {p: "長野県", s: "地獄谷野猿公苑", k: "じごくだにやえんこうえん"}, {p: "長野県", s: "軽井沢", k: "かるいざわ"},
+    {p: "岐阜県", s: "恵那峡", k: "えなきょう"}, {p: "岐阜県", s: "白川郷", k: "しらかわごう"}, {p: "岐阜県", s: "高山陣屋", k: "たかやまじんや"}, {p: "岐阜県", s: "古い町並", k: "ふるいまちなみ"}, {p: "岐阜県", s: "飛騨古川", k: "ひだふるかわ"}, {p: "岐阜県", s: "下呂温泉", k: "げろおんせん"},
+    {p: "静岡県", s: "三保松原", k: "みほのまつばら"}, {p: "静岡県", s: "伊豆半島", k: "いずはんとう"}, {p: "静岡県", s: "修善寺", k: "しゅぜんじ"}, {p: "静岡県", s: "熱海温泉", k: "あたみおんせん"}, {p: "静岡県", s: "玉露の里", k: "ぎょくろのさと"},
+    {p: "愛知県", s: "久屋大通公園", k: "ひさやおおどおりこうえん"}, {p: "愛知県", s: "名城公園", k: "めいじょうこうえん"}, {p: "愛知県", s: "常滑やきもの散歩道", k: "とこなめやきものさんぽみち"}, {p: "愛知県", s: "名古屋城", k: "なごやじょう"}, {p: "愛知県", s: "熱田神宮", k: "あつたじんぐう"}, {p: "愛知県", s: "犬山城", k: "いぬやまじょう"}, {p: "愛知県", s: "明治村", k: "めいじむら"},
+    {p: "三重県", s: "伊勢神宮", k: "いせじんぐう"}, {p: "三重県", s: "二見興玉神社", k: "ふたみおきたまじんじゃ"}, {p: "三重県", s: "夫婦岩", k: "めおといわ"}, {p: "三重県", s: "鳥羽水族館", k: "とばすいぞくかん"},
+    {p: "滋賀県", s: "琵琶湖", k: "びわこ"}, {p: "滋賀県", s: "彦根城", k: "ひこねじょう"}, {p: "滋賀県", s: "白髭神社", k: "しらひげじんじゃ"},
+    {p: "兵庫県", s: "神戸布引ハーブ園", k: "こうべぬのびきはーぶえん"}, {p: "兵庫県", s: "姫路城", k: "ひめじじょう"}, {p: "兵庫県", s: "有馬温泉", k: "ありまおんせん"}, {p: "兵庫県", s: "城崎温泉", k: "きのさきおんせん"}, {p: "兵庫県", s: "竹田城跡", k: "たけだじょうあと"}, {p: "兵庫県", s: "神戸ハーバーランド", k: "こうべはーばーらんど"},
+    {p: "奈良県", s: "東大寺", k: "とうだいじ"}, {p: "奈良県", s: "奈良公園", k: "ならこうえん"}, {p: "奈良県", s: "春日大社", k: "かすがたいしゃ"}, {p: "奈良県", s: "法隆寺", k: "ほうりゅうじ"}, {p: "奈良県", s: "吉野山", k: "よしのやま"},
+    {p: "和歌山県", s: "高野山", k: "こうやさん"}, {p: "和歌山県", s: "熊野本宮大社", k: "くまのほんぐうたいしゃ"}, {p: "和歌山県", s: "熊野那智大社", k: "くまのなちたいしゃ"}, {p: "和歌山県", s: "那智の滝", k: "なちのたき"}, {p: "和歌山県", s: "白浜温泉", k: "しらはまおんせん"},
+    {p: "鳥取県", s: "鳥取砂丘", k: "とっとりさきゅう"}, {p: "鳥取県", s: "浦富海岸", k: "うらどめかいがん"},
+    {p: "島根県", s: "出雲大社", k: "いずもたいしゃ"}, {p: "島根県", s: "石見銀山", k: "いわみぎんざん"}, {p: "島根県", s: "松江城", k: "まつえじょう"}, {p: "島根県", s: "宍道湖", k: "しんじこ"},
+    {p: "岡山県", s: "倉敷美観地区", k: "くらしきびかんちく"}, {p: "岡山県", s: "岡山後楽園", k: "おかやまこうらくえん"}, {p: "岡山県", s: "岡山城", k: "おかやまじょう"}, {p: "岡山県", s: "吉備津神社", k: "きびつじんじゃ"},
+    {p: "広島県", s: "厳島神社", k: "いつくしまじんじゃ"}, {p: "広島県", s: "宮島", k: "みやじま"}, {p: "広島県", s: "平和記念公園", k: "へいわきねんこうえん"}, {p: "広島県", s: "原爆ドーム", k: "げんばくドーム"}, {p: "広島県", s: "尾道", k: "おのみち"},
+    {p: "山口県", s: "錦帯橋", k: "きんたいきょう"}, {p: "山口県", s: "秋芳洞", k: "あきよしどう"}, {p: "山口県", s: "角島大橋", k: "つのしまおおはし"}, {p: "山口県", s: "元乃隅神社", k: "もとのすみじんじゃ"}
+];
+
+let mode = 0;
+let currentItem = null;
+let matchState = { left: null, right: null };
+
+function startMode(m) {
+    mode = m;
+    document.getElementById('main-menu').style.display = 'none';
+    document.getElementById('game-area').style.display = 'block';
+    renderQuestion();
+}
+
+function renderQuestion() {
+    const qText = document.getElementById('question-text');
+    const content = document.getElementById('content');
+    const feedback = document.getElementById('feedback-area');
+    content.innerHTML = ''; feedback.innerText = ''; 
+    matchState = { left: null, right: null };
+    
+    currentItem = rawData[Math.floor(Math.random() * rawData.length)];
+
+    if (mode === 1 || mode === 2) {
+        const isType1 = mode === 1;
+        qText.innerText = isType1 ? `【${currentItem.p}】にある観光地は？` : `【${currentItem.s}】はどこにある？`;
+        const key = isType1 ? 's' : 'p';
+        let options = shuffle([currentItem[key], ...getDistractors(key, currentItem[key], 3)]);
+        content.className = 'option-grid';
+        options.forEach(opt => {
+            const btn = document.createElement('button');
+            btn.className = 'option-btn'; btn.innerText = opt;
+            btn.onclick = () => btn.classList.add(opt === currentItem[key] ? 'correct' : 'wrong');
+            content.appendChild(btn);
+        });
+    } else if (mode === 3) {
+        qText.innerText = `【${currentItem.p}】にあるものを全て選んでください（6択）`;
+        
+        // 1. 获取该地区所有正确的景点
+        const allCorrect = rawData.filter(x => x.p === currentItem.p).map(x => x.s);
+        
+        // 2. 从正确答案中随机抽取 1 到 3 个（确保选项里有正确答案，但不会全是正确答案）
+        let numCorrectToDisplay = Math.min(allCorrect.length, Math.floor(Math.random() * 3) + 1);
+        let selectedCorrect = shuffle(allCorrect).slice(0, numCorrectToDisplay);
+        
+        // 3. 准备干扰项（其他县的景点）
+        let options = [...selectedCorrect];
+        while(options.length < 6) {
+            let distractor = rawData[Math.floor(Math.random() * rawData.length)].s;
+            // 确保干扰项不重复，且不属于当前县
+            if(!options.includes(distractor) && !allCorrect.includes(distractor)) {
+                options.push(distractor);
+            }
+        }
+        
+        content.className = 'option-grid';
+        shuffle(options).forEach(opt => {
+            const btn = document.createElement('button');
+            btn.className = 'option-btn'; 
+            btn.innerText = opt;
+            btn.onclick = () => {
+                // 判断点击的是否在当前县的所有正确景点列表里
+                if(allCorrect.includes(opt)) {
+                    btn.classList.add('correct');
+                } else {
+                    btn.classList.add('wrong');
+                }
+            };
+            content.appendChild(btn);
+        });
+    } else if (mode === 4) {
+        const isTrue = Math.random() > 0.5;
+        const fakeP = getDistractors('p', currentItem.p, 1)[0];
+        qText.innerText = `【${currentItem.s}】は【${isTrue ? currentItem.p : fakeP}】にある？`;
+        content.className = 'option-grid';
+        [{t:'はい', v:true}, {t:'いいえ', v:false}].forEach(o => {
+            const btn = document.createElement('button');
+            btn.className = 'option-btn'; btn.innerText = o.t;
+            btn.onclick = () => btn.classList.add(o.v === isTrue ? 'correct' : 'wrong');
+            content.appendChild(btn);
+        });
+    } else if (mode === 5) {
+        qText.innerText = "ペアを選んでください";
+        renderMatchMode();
+    } else if (mode === 6) {
+        qText.innerText = `【${currentItem.s}】の読み方は？`;
+        content.className = '';
+        content.innerHTML = `<input type="text" id="k-in" placeholder="ひらがなを入力..." autofocus>`;
+        const input = document.getElementById('k-in');
+        input.onkeydown = (e) => {
+            if(e.key === 'Enter') {
+                if(input.value === currentItem.k) {
+                    input.style.borderColor = "#4caf50";
+                    feedback.innerText = "正解です！ ✅"; feedback.style.color = "#4caf50";
+                } else {
+                    input.style.borderColor = "#f44336";
+                    feedback.innerText = `不正解！ 正解は：${currentItem.k}`; feedback.style.color = "#f44336";
+                }
+            }
+        };
+    }
+}
+
+function renderMatchMode() {
+    const content = document.getElementById('content');
+    content.className = 'match-container';
+    let pool = shuffle([...rawData]).slice(0, 6);
+    let leftItems = shuffle(pool.map(x => ({id: x.s, text: x.p})));
+    let rightItems = shuffle(pool.map(x => ({id: x.s, text: x.s})));
+    const leftCol = document.createElement('div'); leftCol.className = 'match-col';
+    const rightCol = document.createElement('div'); rightCol.className = 'match-col';
+
+    const handleMatch = (itemData, el, side) => {
+        if(el.classList.contains('locked')) return;
+        const currentSideItems = document.querySelectorAll(`.match-col:nth-child(${side === 'left' ? 1 : 2}) .match-item`);
+        currentSideItems.forEach(i => i.classList.remove('active'));
+        el.classList.add('active');
+        matchState[side] = { el, id: itemData.id };
+        
+        if(matchState.left && matchState.right) {
+            if(matchState.left.id === matchState.right.id) {
+                matchState.left.el.classList.add('correct', 'locked');
+                matchState.right.el.classList.add('correct', 'locked');
+                matchState.left.el.classList.remove('active');
+                matchState.right.el.classList.remove('active');
+            } else {
+                const l = matchState.left.el, r = matchState.right.el;
+                l.classList.add('wrong'); r.classList.add('wrong');
+                setTimeout(() => { l.classList.remove('wrong', 'active'); r.classList.remove('wrong', 'active'); }, 400);
+            }
+            matchState = { left: null, right: null };
+        }
+    };
+
+    leftItems.forEach(d => {
+        const div = document.createElement('div'); div.className = 'match-item'; div.innerText = d.text;
+        div.onclick = () => handleMatch(d, div, 'left');
+        leftCol.appendChild(div);
+    });
+    rightItems.forEach(d => {
+        const div = document.createElement('div'); div.className = 'match-item'; div.innerText = d.text;
+        div.onclick = () => handleMatch(d, div, 'right');
+        rightCol.appendChild(div);
+    });
+    content.appendChild(leftCol); content.appendChild(rightCol);
+}
+
+function getDistractors(key, exclude, count) {
+    let list = [...new Set(rawData.map(x => x[key]))].filter(x => x !== exclude);
+    return shuffle(list).slice(0, count);
+}
+
+function shuffle(arr) { return arr.slice().sort(() => Math.random() - 0.5); }
+</script>
+</body>
+</html>
